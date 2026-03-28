@@ -1,20 +1,34 @@
 const PASS = 'datasciencegt';
+const DB_URL = 'https://ds-challenge-6ef2c-default-rtdb.firebaseio.com';
 let currentPlayer = '';
-let submissions = JSON.parse(localStorage.getItem('ds_submissions') || '[]');
 let realProfits = { amazon: 30425, nubank: 1033, ubereats: 1887 };
-let revealed = JSON.parse(localStorage.getItem('ds_revealed') || 'false');
+
+async function dbSet(path, data) {
+  await fetch(`${DB_URL}/${path}.json`, { method: 'PUT', body: JSON.stringify(data) });
+}
+async function dbGet(path) {
+  const r = await fetch(`${DB_URL}/${path}.json`);
+  return r.json();
+}
+function dbListen(path, cb) {
+  const es = new EventSource(`${DB_URL}/${path}.json?accept=text/event-stream`);
+  es.addEventListener('put', e => cb(JSON.parse(e.data).data));
+  return es;
+}
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 function fmt(n) { return '$' + Math.round(n).toLocaleString() + 'M'; }
 
-window.startPlayer = function() {
+window.startPlayer = async function() {
   const n = document.getElementById('player-name').value.trim();
   if (!n) { document.getElementById('name-err').style.display = 'block'; return; }
   document.getElementById('name-err').style.display = 'none';
   currentPlayer = n;
   document.getElementById('predict-greeting').textContent = 'Hola, ' + n + '!';
   calcAmazon(); calcNubank(); calcUber();
-  if (revealed) { renderResults(); show('s-results'); } else show('s-predict');
+  const revealed = await dbGet('revealed');
+  if (revealed) { await loadRealProfits(); renderResults(); show('s-results'); }
+  else show('s-predict');
 }
 
 window.goAdmin = function() { show('s-admin-login'); }
@@ -32,14 +46,14 @@ window.updR = function() {
   document.getElementById('v-nubank').textContent = fmt(n);
   document.getElementById('v-ubereats').textContent = fmt(u);
   realProfits = { amazon: a, nubank: n, ubereats: u };
-  localStorage.setItem('ds_realprofits', JSON.stringify(realProfits));
 }
 
-window.renderAdmin = function() {
-  submissions = JSON.parse(localStorage.getItem('ds_submissions') || '[]');
+window.renderAdmin = async function() {
+  const subs = await dbGet('submissions');
   const el = document.getElementById('admin-entries');
-  if (!submissions.length) { el.innerHTML = '<p class="small">Aun no hay participantes.</p>'; return; }
-  el.innerHTML = submissions.map(s => `<div class="entry-row"><span>${s.name}</span><span class="small">${new Date(s.ts).toLocaleTimeString()}</span></div>`).join('');
+  if (!subs) { el.innerHTML = '<p class="small">Aun no hay participantes.</p>'; return; }
+  const arr = Object.values(subs);
+  el.innerHTML = arr.map(s => `<div class="entry-row"><span>${s.name}</span><span class="small">${new Date(s.ts).toLocaleTimeString()}</span></div>`).join('');
 }
 
 window.switchTab = function(i) {
@@ -87,45 +101,39 @@ function getPredictions() {
   };
 }
 
-window.submitPrediction = function() {
+window.submitPrediction = async function() {
   const preds = getPredictions();
-  submissions = JSON.parse(localStorage.getItem('ds_submissions') || '[]');
-  submissions = submissions.filter(s => s.name !== currentPlayer);
-  submissions.push({ name: currentPlayer, ts: Date.now(), preds });
-  localStorage.setItem('ds_submissions', JSON.stringify(submissions));
+  const key = currentPlayer.replace(/[^a-zA-Z0-9]/g, '_');
+  await dbSet(`submissions/${key}`, { name: currentPlayer, ts: Date.now(), preds });
   document.getElementById('my-summary').innerHTML = `
     <div class="entry-row"><span class="small">Amazon</span><span style="font-weight:500">${fmt(preds.amazon)}</span></div>
     <div class="entry-row"><span class="small">Nubank</span><span style="font-weight:500">${fmt(preds.nubank)}</span></div>
     <div class="entry-row"><span class="small">Uber Eats</span><span style="font-weight:500">${fmt(preds.ubereats)}</span></div>`;
   show('s-waiting');
-  pollRevealed();
+  dbListen('revealed', async (val) => {
+    if (val) { await loadRealProfits(); renderResults(); show('s-results'); }
+  });
 }
 
-function pollRevealed() {
-  const r = JSON.parse(localStorage.getItem('ds_revealed') || 'false');
-  if (r) { renderResults(); show('s-results'); }
-  else setTimeout(pollRevealed, 2000);
+async function loadRealProfits() {
+  const rp = await dbGet('realprofits');
+  if (rp) realProfits = rp;
 }
 
-function calcError(preds, real) {
-  const errs = [
-    Math.abs(preds.amazon - real.amazon) / real.amazon,
-    Math.abs(preds.nubank - real.nubank) / real.nubank,
-    Math.abs(preds.ubereats - real.ubereats) / Math.abs(real.ubereats || 1)
-  ];
-  return errs.reduce((a, b) => a + b, 0) / 3;
-}
-
-window.revealResults = function() {
-  localStorage.setItem('ds_revealed', 'true');
+window.revealResults = async function() {
+  await dbSet('realprofits', realProfits);
+  await dbSet('revealed', true);
+  await loadRealProfits();
   renderResults();
   show('s-results');
 }
 
-function renderResults() {
-  const real = JSON.parse(localStorage.getItem('ds_realprofits') || JSON.stringify(realProfits));
-  const subs = JSON.parse(localStorage.getItem('ds_submissions') || '[]');
-  const ranked = subs.map(s => ({ ...s, err: calcError(s.preds, real) })).sort((a, b) => a.err - b.err);
+async function renderResults() {
+  await loadRealProfits();
+  const subs = await dbGet('submissions');
+  if (!subs) return;
+  const arr = Object.values(subs);
+  const ranked = arr.map(s => ({ ...s, err: calcError(s.preds, realProfits) })).sort((a, b) => a.err - b.err);
   const colors = ['#FAC775', '#D3D1C7', '#F0997B'];
   document.getElementById('podio-grid').innerHTML = ranked.slice(0, 3).map((s, i) => `
     <div class="podio-card">
@@ -139,9 +147,16 @@ function renderResults() {
       <span style="font-size:12px;color:#888">Error: ${(s.err * 100).toFixed(1)}%</span>
     </div>`).join('');
   document.getElementById('real-vals').innerHTML = `
-    <div class="entry-row"><span class="small">Amazon</span><span style="font-weight:500">${fmt(real.amazon)}</span></div>
-    <div class="entry-row"><span class="small">Nubank</span><span style="font-weight:500">${fmt(real.nubank)}</span></div>
-    <div class="entry-row"><span class="small">Uber Eats</span><span style="font-weight:500">${fmt(real.ubereats)}</span></div>`;
+    <div class="entry-row"><span class="small">Amazon</span><span style="font-weight:500">${fmt(realProfits.amazon)}</span></div>
+    <div class="entry-row"><span class="small">Nubank</span><span style="font-weight:500">${fmt(realProfits.nubank)}</span></div>
+    <div class="entry-row"><span class="small">Uber Eats</span><span style="font-weight:500">${fmt(realProfits.ubereats)}</span></div>`;
 }
 
-if (revealed) { renderResults(); show('s-results'); }
+function calcError(preds, real) {
+  const errs = [
+    Math.abs(preds.amazon - real.amazon) / real.amazon,
+    Math.abs(preds.nubank - real.nubank) / real.nubank,
+    Math.abs(preds.ubereats - real.ubereats) / Math.abs(real.ubereats || 1)
+  ];
+  return errs.reduce((a, b) => a + b, 0) / 3;
+}
