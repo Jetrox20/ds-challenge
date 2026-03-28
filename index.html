@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Science Challenge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 1rem; max-width: 480px; margin: 0 auto; }
+    .screen { display: none; padding: 1rem 0; }
+    .screen.active { display: block; }
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .label { font-size: 13px; color: #666; margin-bottom: 4px; }
+    .big { font-size: 22px; font-weight: 500; }
+    .small { font-size: 13px; color: #666; }
+    .row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .row label { font-size: 13px; color: #666; width: 130px; flex-shrink: 0; }
+    .row input[type=range] { flex: 1; }
+    .row .val { font-size: 13px; font-weight: 500; min-width: 70px; text-align: right; }
+    .pill { display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 20px; font-weight: 500; }
+    .pill-blue { background: #E6F1FB; color: #0C447C; }
+    .pill-teal { background: #E1F5EE; color: #085041; }
+    .pill-amber { background: #FAEEDA; color: #633806; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab { padding: 6px 14px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; cursor: pointer; background: #fff; color: #666; }
+    .tab.active { background: #f0f0f0; color: #1a1a1a; font-weight: 500; border-color: #999; }
+    .btn-main { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; color: #1a1a1a; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 8px; }
+    .btn-main:hover { background: #f5f5f5; }
+    .btn-accent { width: 100%; padding: 10px; border-radius: 8px; background: #185FA5; color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; border: none; margin-top: 8px; }
+    .btn-accent:hover { background: #0C447C; }
+    .btn-danger { width: 100%; padding: 10px; border-radius: 8px; background: #A32D2D; color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; border: none; margin-top: 8px; }
+    .entry-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+    .entry-row:last-child { border-bottom: none; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 1rem 0; }
+    .podio-card { border: 1px solid #e0e0e0; border-radius: 12px; padding: 1rem; text-align: center; }
+    .sec-title { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .admin-badge { background: #FAEEDA; color: #633806; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+    input[type=text], input[type=password] { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 15px; background: #fff; color: #1a1a1a; margin-bottom: 8px; }
+    .err { font-size: 12px; color: #A32D2D; margin-top: 4px; }
+    .surface { background: #f5f5f5; border-radius: 8px; padding: 1rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<div id="s-welcome" class="screen active">
+  <div class="card">
+    <div class="sec-title">Data Science Challenge</div>
+    <div class="big" style="margin-bottom:6px">Predice el profit</div>
+    <p class="small" style="margin-bottom:16px">Analiza variables de negocio de 3 empresas y predice su beneficio real. Los 3 con menor margen de error ganan.</p>
+    <input type="text" id="player-name" placeholder="Tu nombre..." />
+    <div id="name-err" class="err" style="display:none">Escribe tu nombre para continuar</div>
+    <button class="btn-accent" onclick="startPlayer()">Entrar al reto</button>
+    <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+    <button class="btn-main" onclick="goAdmin()">Panel del presentador</button>
+  </div>
+</div>
+
+<div id="s-admin-login" class="screen">
+  <div class="card">
+    <div class="sec-title">Acceso presentador <span class="admin-badge">privado</span></div>
+    <input type="password" id="admin-pass" placeholder="Contrasena..." />
+    <div id="pass-err" class="err" style="display:none">Contrasena incorrecta</div>
+    <button class="btn-accent" onclick="checkAdmin()">Entrar</button>
+    <button class="btn-main" onclick="show('s-welcome')">Volver</button>
+  </div>
+</div>
+
+<div id="s-admin" class="screen">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="sec-title" style="margin:0">Panel del presentador</div>
+      <span class="admin-badge">solo tu lo ves</span>
+    </div>
+    <p class="small" style="margin-bottom:12px">Profits reales en millones USD. Ajusta antes de revelar.</p>
+    <div class="row"><label>Amazon profit real</label><input type="range" min="0" max="100000" step="100" value="30425" id="r-amazon" oninput="updR()"><span class="val" id="v-amazon">$30,425M</span></div>
+    <div class="row"><label>Nubank profit real</label><input type="range" min="0" max="5000" step="10" value="1033" id="r-nubank" oninput="updR()"><span class="val" id="v-nubank">$1,033M</span></div>
+    <div class="row"><label>Uber Eats profit real</label><input type="range" min="-5000" max="5000" step="10" value="1887" id="r-ubereats" oninput="updR()"><span class="val" id="v-ubereats">$1,887M</span></div>
+  </div>
+  <div class="card">
+    <div class="sec-title">Participantes registrados</div>
+    <div id="admin-entries"><p class="small">Aun no hay participantes.</p></div>
+    <button class="btn-main" onclick="renderAdmin()" style="margin-top:8px">Actualizar lista</button>
+  </div>
+  <button class="btn-danger" onclick="revealResults()">Revelar resultados ahora</button>
+  <button class="btn-main" onclick="show('s-welcome')">Volver al inicio</button>
+</div>
+
+<div id="s-predict" class="screen">
+  <div class="card">
+    <div class="sec-title">Tu prediccion</div>
+    <div class="big" style="margin-bottom:4px" id="predict-greeting">Hola!</div>
+    <p class="small" style="margin-bottom:16px">Ajusta los sliders para predecir el profit anual (millones USD).</p>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(0)">Amazon</div>
+      <div class="tab" onclick="switchTab(1)">Nubank</div>
+      <div class="tab" onclick="switchTab(2)">Uber Eats</div>
+    </div>
+    <div id="tab-0">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="small">E-commerce + Cloud (AWS)</span><span class="pill pill-blue">Big Tech</span></div>
+      <div class="row"><label>Inversion en I+D (B$)</label><input type="range" min="10" max="100" step="1" value="50" id="a-rd" oninput="calcAmazon()"><span class="val" id="va-rd">$50B</span></div>
+      <div class="row"><label>Usuarios Prime (M)</label><input type="range" min="100" max="350" step="1" value="200" id="a-prime" oninput="calcAmazon()"><span class="val" id="va-prime">200M</span></div>
+      <div class="row"><label>Margen operativo (%)</label><input type="range" min="1" max="30" step="1" value="10" id="a-margin" oninput="calcAmazon()"><span class="val" id="va-margin">10%</span></div>
+      <div class="surface"><div class="label">Tu prediccion Amazon</div><div class="big" id="pred-amazon">$25,000M</div></div>
+    </div>
+    <div id="tab-1" style="display:none">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="small">Fintech digital latinoamerica</span><span class="pill pill-teal">Fintech</span></div>
+      <div class="row"><label>Clientes activos (M)</label><input type="range" min="10" max="120" step="1" value="50" id="n-clientes" oninput="calcNubank()"><span class="val" id="vn-cl">50M</span></div>
+      <div class="row"><label>Ingreso por cliente ($)</label><input type="range" min="10" max="100" step="1" value="30" id="n-arpu" oninput="calcNubank()"><span class="val" id="vn-arpu">$30</span></div>
+      <div class="row"><label>Tasa de morosidad (%)</label><input type="range" min="1" max="20" step="1" value="8" id="n-mora" oninput="calcNubank()"><span class="val" id="vn-mora">8%</span></div>
+      <div class="surface"><div class="label">Tu prediccion Nubank</div><div class="big" id="pred-nubank">$500M</div></div>
+    </div>
+    <div id="tab-2" style="display:none">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="small">Delivery de comida global</span><span class="pill pill-amber">Delivery</span></div>
+      <div class="row"><label>Pedidos diarios (M)</label><input type="range" min="1" max="30" step="1" value="10" id="u-orders" oninput="calcUber()"><span class="val" id="vu-ord">10M</span></div>
+      <div class="row"><label>Comision por pedido (%)</label><input type="range" min="10" max="35" step="1" value="20" id="u-comm" oninput="calcUber()"><span class="val" id="vu-comm">20%</span></div>
+      <div class="row"><label>Costo operativo (%)</label><input type="range" min="50" max="99" step="1" value="80" id="u-cost" oninput="calcUber()"><span class="val" id="vu-cost">80%</span></div>
+      <div class="surface"><div class="label">Tu prediccion Uber Eats</div><div class="big" id="pred-ubereats">$800M</div></div>
+    </div>
+    <button class="btn-accent" onclick="submitPrediction()" style="margin-top:16px">Enviar prediccion</button>
+  </div>
+</div>
+
+<div id="s-waiting" class="screen">
+  <div class="card" style="text-align:center;padding:2rem 1.25rem">
+    <div class="big" style="margin-bottom:8px">Prediccion enviada</div>
+    <p class="small">Espera a que el presentador revele los resultados.</p>
+    <div style="margin-top:24px;display:flex;flex-direction:column;gap:8px" id="my-summary"></div>
+  </div>
+</div>
+
+<div id="s-results" class="screen">
+  <div class="card">
+    <div class="sec-title">Resultados finales</div>
+    <div class="big" style="margin-bottom:4px">Podio</div>
+    <p class="small" style="margin-bottom:16px">Menor margen de error promedio gana.</p>
+    <div class="grid3" id="podio-grid"></div>
+  </div>
+  <div class="card">
+    <div class="sec-title">Tabla completa</div>
+    <div id="results-table"></div>
+  </div>
+  <div class="card">
+    <div class="sec-title">Profits reales</div>
+    <div id="real-vals"></div>
+  </div>
+</div>
+
+<script src="/src/main.js"></script>
+</body>
+</html>
